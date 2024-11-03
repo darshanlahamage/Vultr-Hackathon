@@ -9,18 +9,23 @@ export const requestOTP = async (req, res) => {
 
     try {
         connection = await db.getConnection();
-        const [results] = await db.query('SELECT * FROM aadhaar WHERE aadhaar_number = ?', [aadhaar_number]);
+        const [results] = await connection.query('SELECT * FROM aadhaar WHERE aadhaar_number = ?', [aadhaar_number]);
 
         if (results.length === 0) return res.status(404).json({ error: 'Aadhaar not found' });
 
         const aadhaarData = results[0];
-        const otp = generateOTP(aadhaarData.phone);
+        generateOTP(aadhaarData.phone);
 
-        // Simulate sending OTP (replace with actual SMS sending logic)
-        console.log(`OTP sent to ${aadhaarData.phone}: ${otp}`);
-        res.status(200).json({ message: 'OTP sent', aadhaar_number });
+        console.log(`OTP sent to ${aadhaarData.phone}`);
+        res.status(200).json({ message: 'OTP sent', aadhaar: aadhaar_number, phone: aadhaarData.phone });
+
     } catch (err) {
         return res.status(500).json({ error: err.message });
+
+    } finally {
+        if (connection) {
+            connection.release();
+        }
     }
 };
 
@@ -28,8 +33,11 @@ export const requestOTP = async (req, res) => {
 export const verifyOTPAndRegister = async (req, res) => {
     const { aadhaar_number, otp, role } = req.body;
 
+    let connection;
+
     try {
-        const [results] = await db.query('SELECT * FROM aadhaar WHERE aadhaar_number = ?', [aadhaar_number]);
+        connection = await db.getConnection();
+        const [results] = await connection.query('SELECT * FROM aadhaar WHERE aadhaar_number = ?', [aadhaar_number]);
 
         if (results.length === 0) return res.status(404).json({ error: 'Aadhaar not found' });
 
@@ -48,8 +56,14 @@ export const verifyOTPAndRegister = async (req, res) => {
 
         const [result] = await db.query('INSERT INTO users SET ?', userData);
         res.status(201).json({ message: 'User registered successfully', userId: result.insertId });
+
     } catch (err) {
         return res.status(500).json({ error: err.message });
+
+    } finally {
+        if (connection) {
+            connection.release();
+        }
     }
 };
 
