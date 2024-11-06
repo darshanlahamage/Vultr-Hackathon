@@ -67,6 +67,69 @@ export const verifyOTPAndRegister = async (req, res) => {
     }
 };
 
+// Login User: OTP Verification and Fetch User Details
+export const verifyOTPAndLogin = async (req, res) => {
+    const { aadhaar_number, otp } = req.body;
+
+    let connection;
+
+    try {
+        connection = await db.getConnection();
+        const [results] = await connection.query('SELECT * FROM aadhaar WHERE aadhaar_number = ?', [aadhaar_number]);
+
+        if (results.length === 0) return res.status(404).json({ error: 'Aadhaar not found' });
+
+        const aadhaarData = results[0];
+        if (!verifyOTP(aadhaarData.phone, otp)) {
+            return res.status(400).json({ error: 'Invalid OTP' });
+        }
+
+        // Fetch user details based on aadhaar_number
+        const [userResults] = await connection.query('SELECT * FROM users WHERE aadhaar_number = ?', [aadhaar_number]);
+
+        if (userResults.length === 0) {
+            return res.status(404).json({ error: 'User not registered' });
+        }
+
+        const user = userResults[0];
+        res.status(200).json({ message: 'Login successful', user });
+
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+
+    } finally {
+        if (connection) {
+            connection.release();
+        }
+    }
+};
+
+// Get User Details by user_id
+export const getUserDetails = async (req, res) => {
+    const { user_id } = req.params;
+
+    let connection;
+
+    try {
+        connection = await db.getConnection();
+        const [results] = await connection.query('SELECT * FROM users WHERE user_id = ?', [user_id]);
+
+        if (results.length === 0) return res.status(404).json({ error: 'User not found' });
+
+        const user = results[0];
+
+        res.status(200).json({ user });
+
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+
+    } finally {
+        if (connection) {
+            connection.release();
+        }
+    }
+};
+
 // KYC Verification: Upload and Verify Selfie
 export const verifyKYC = async (req, res) => {
     const { userId } = req.body;
