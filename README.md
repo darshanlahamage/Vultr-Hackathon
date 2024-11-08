@@ -45,3 +45,54 @@ Used for spinning up your own [Database Server](https://www.vultr.com/products/m
 
 To run this project, you will need to add the above mentioned variables to your .env file in the backend folder
 
+## Run Locally
+
+Clone the project with github submodules
+
+```bash
+  git clone --recurse-submodules https://github.com/sandeepB3/vultr.git
+```
+
+Open 3 terminals and go to the each of the project directories 
+
+```bash
+  cd backend
+  cd app-interface
+  cd web-interface
+```
+
+Install dependencies in all
+
+```bash
+  npm install
+```
+
+### Step 1: Setup your backend server
+Create .env file in backend folder & fill the env variables as stated above
+
+```bash
+  touch .env
+```
+Once you have setup the enviorment variables run the server
+
+```bash
+  nodemon index.js
+```
+
+Now since the backend is up, one can access this saved [Postman Backend Routes](https://documenter.getpostman.com/view/22520909/2sAY52byYs#c7f0089a-4f2c-49f8-a035-30cdd84dda0f) and test the apis.
+
+### Step 2: Start your Farmers First Mobile App
+
+Start Client and scan the expo QR code using expo app
+
+```bash
+  npm start
+```
+
+### Step 3: Start your Farmers First Web App
+
+Start Client localhost and run the app in your prefered browser
+
+```bash
+  npm start
+```
