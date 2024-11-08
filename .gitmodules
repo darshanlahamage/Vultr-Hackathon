@@ -1,0 +1,3 @@
+[submodule "web-interface"]
+	path = web-interface
+	url = https://github.com/yogendraapawar/crowdlend.git
