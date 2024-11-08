@@ -1,3 +1,6 @@
 [submodule "web-interface"]
 	path = web-interface
 	url = https://github.com/yogendraapawar/crowdlend.git
+[submodule "app-interface"]
+	path = app-interface
+	url = https://github.com/darshanlahamage/app-interface.git
