@@ -1,5 +1,7 @@
 import db from '../config/db.js';
 import { generateOTP, verifyOTP } from '../middlewares/otp.js';
+import axios from 'axios';
+import FormData from 'form-data';
 
 // Register User Step 1: Request OTP
 export const requestOTP = async (req, res) => {
@@ -31,17 +33,17 @@ export const requestOTP = async (req, res) => {
 
 // Register User Step 2: Verify OTP and Insert User
 export const verifyOTPAndRegister = async (req, res) => {
-    const { aadhaar_number, otp, role } = req.body;
+    const { aadhaar_number, otp, role, password } = req.body;
 
     let connection;
 
     try {
         connection = await db.getConnection();
-        const [results] = await connection.query('SELECT * FROM aadhaar WHERE aadhaar_number = ?', [aadhaar_number]);
+        const [aadhaarResults] = await connection.query('SELECT * FROM aadhaar WHERE aadhaar_number = ?', [aadhaar_number]);
 
-        if (results.length === 0) return res.status(404).json({ error: 'Aadhaar not found' });
+        if (aadhaarResults.length === 0) return res.status(404).json({ error: 'Aadhaar not found' });
 
-        const aadhaarData = results[0];
+        const aadhaarData = aadhaarResults[0];
         if (!verifyOTP(aadhaarData.phone, otp)) {
             return res.status(400).json({ error: 'Invalid OTP' });
         }
@@ -52,6 +54,7 @@ export const verifyOTPAndRegister = async (req, res) => {
             aadhaar_number,
             role,
             kyc_verified: false,
+            password
         };
 
         const [result] = await db.query('INSERT INTO users SET ?', userData);
@@ -67,31 +70,25 @@ export const verifyOTPAndRegister = async (req, res) => {
     }
 };
 
-// Login User: OTP Verification and Fetch User Details
-export const verifyOTPAndLogin = async (req, res) => {
-    const { aadhaar_number, otp } = req.body;
+// Login User: Verify phone, password and fetch user details
+export const userLogin = async (req, res) => {
+    const { phone, password } = req.body;
 
     let connection;
 
     try {
-        connection = await db.getConnection();
-        const [results] = await connection.query('SELECT * FROM aadhaar WHERE aadhaar_number = ?', [aadhaar_number]);
-
-        if (results.length === 0) return res.status(404).json({ error: 'Aadhaar not found' });
-
-        const aadhaarData = results[0];
-        if (!verifyOTP(aadhaarData.phone, otp)) {
-            return res.status(400).json({ error: 'Invalid OTP' });
-        }
-
-        // Fetch user details based on aadhaar_number
-        const [userResults] = await connection.query('SELECT * FROM users WHERE aadhaar_number = ?', [aadhaar_number]);
+        // Fetch user details based on phone number
+        const [userResults] = await connection.query('SELECT * FROM users WHERE phone = ?', [phone]);
 
         if (userResults.length === 0) {
             return res.status(404).json({ error: 'User not registered' });
         }
 
         const user = userResults[0];
+        if (user.password !== password) {
+            return res.status(400).json({ error: 'Invalid Password' });
+        }
+
         res.status(200).json({ message: 'Login successful', user });
 
     } catch (err) {
@@ -132,26 +129,96 @@ export const getUserDetails = async (req, res) => {
 
 // KYC Verification: Upload and Verify Selfie
 export const verifyKYC = async (req, res) => {
-    const { userId } = req.body;
-    const { photo } = req.file; // Assume photo is uploaded as form-data
+    const { user_id, aadhaar_number } = req.body;
+
+    if (!req.file) {
+        return res.status(400).json({ error: 'Photo is required for KYC verification' });
+    }
+
+    let connection;
 
     try {
-        const [results] = await db.query('SELECT * FROM users WHERE user_id = ?', [userId]);
+        connection = await db.getConnection();
 
-        if (results.length === 0) return res.status(404).json({ error: 'User not found' });
-
-        const user = results[0];
-
-        // Simulate ML-based photo verification (replace with actual ML verification logic)
-        const isPhotoMatch = true; // Mocked result
-
-        if (isPhotoMatch) {
-            await db.query('UPDATE users SET kyc_verified = ? WHERE user_id = ?', [true, userId]);
-            res.status(200).json({ message: 'KYC verified successfully' });
-        } else {
-            res.status(400).json({ error: 'KYC verification failed' });
+        const [validationResults] = await connection.query(
+            'SELECT * FROM users WHERE user_id = ? AND aadhaar_number = ?',
+            [user_id, aadhaar_number]
+        );
+        if (validationResults.length === 0) {
+            return res.status(403).json({ error: 'Unauthorized access' });
         }
+
+        // Fetch Aadhaar photo
+        const [aadhaarResults] = await connection.query('SELECT photo FROM aadhaar WHERE aadhaar_number = ?', [aadhaar_number]);
+
+        if (aadhaarResults.length === 0 || !aadhaarResults[0].photo) {
+            return res.status(404).json({ error: 'No Aadhaar photo found for comparison' });
+        }
+
+        const aadhaarPhoto = aadhaarResults[0].photo;
+        const uploadedPhoto = req.file.buffer;
+
+        // Create a multipart form-data payload for the Flask server
+        const formData = new FormData();
+        formData.append('img1', Buffer.from(aadhaarPhoto), 'aadhaar.jpg'); // Aadhaar photo
+        formData.append('img2', uploadedPhoto, req.file.originalname); // Uploaded photo
+
+        // Call the Flask API
+        const flaskResponse = await axios.post('http://127.0.0.1:5000/verify-kyc', formData, {
+            headers: formData.getHeaders(),
+        });
+
+        const { verified, distance } = flaskResponse.data;
+
+        if (!verified) {
+            return res.status(400).json({
+                error: 'KYC verification failed: Photos do not match',
+                distance,
+            });
+        }
+
+        // If matched, store the uploaded photo and update KYC status
+        await connection.query('UPDATE users SET photo = ?, kyc_verified = ? WHERE user_id = ?', [uploadedPhoto, true, user_id]);
+        res.status(200).json({ message: 'KYC verified successfully', distance });
+
     } catch (err) {
-        return res.status(500).json({ error: err.message });
+        console.error('Error during KYC verification:', err);
+        res.status(500).json({ error: 'Failed to verify KYC' });
+
+    } finally {
+        if (connection) {
+            connection.release();
+        }
+    }
+};
+
+// Aadhaar Photo Upload
+export const aadhaarUpload = async (req, res) => {
+    const { aadhaar_number } = req.body;
+
+    if (!req.file) {
+        return res.status(400).json({ error: 'Photo is required to be added to Aadhaar Database' });
+    }
+
+    let connection;
+
+    try {
+        connection = await db.getConnection();
+
+        const uploadPhoto = req.file.buffer;
+
+        // Execute the query
+        const query = 'INSERT INTO aadhaar (aadhaar_number, photo) VALUES (?, ?) ON DUPLICATE KEY UPDATE photo = VALUES(photo)';
+        await connection.execute(query, [aadhaar_number, uploadPhoto]);
+        res.status(200).json({ message: 'Photo updated successfully' });
+
+    } catch (err) {
+        console.error('Error updating photo:', err);
+        res.status(500).json({ error: 'Failed to upload photo' });
+
+    } finally {
+        if (connection) {
+            connection.release();
+        }
     }
 };

@@ -1,0 +1,5 @@
+Flask
+deepface
+Pillow
+json
+flask-cors
