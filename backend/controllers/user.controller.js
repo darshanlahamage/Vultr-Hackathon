@@ -222,3 +222,45 @@ export const aadhaarUpload = async (req, res) => {
         }
     }
 };
+
+
+export const reverseAddress = async (req, res) => {
+    try {
+      const { latitude, longitude } = req.body;
+  
+      if (!latitude || !longitude) {
+        return res.status(400).json({
+          success: false,
+          message: "Latitude and longitude are required",
+        });
+      }
+  
+      // Google Maps Geocoding API endpoint
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+  
+      const response = await axios.get(url);
+  
+      if (response.data.status === "OK") {
+        const address = response.data.results[0].formatted_address;
+        res.status(200).json({
+          success: true,
+          address: address,
+          fullResponse: response.data.results[0],
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: "Unable to get address",
+          status: response.data.status,
+        });
+      }
+    } catch (error) {
+      console.error("Reverse geocoding error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error getting address",
+        error: error.message,
+      });
+    }
+  };
+  
