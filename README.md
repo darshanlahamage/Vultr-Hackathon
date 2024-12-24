@@ -2,8 +2,10 @@
 
 Farmers First is a P2P loan platform connecting rural farmers with lenders for fair loans. Farmers use a React Native app to complete eKYC, check credit scores, apply for loans, and accept bids. Lenders access a React web app to view applications, bid, and access reports. Admins manage bids and deploy smart contracts on the blockchain using solidity. Built on Vultr, with Node.js, MySQL, and object storage, Farmers First ensures secure, transparent transactions and promotes financial inclusion.
 
+![Tech Titans drawio (1)](https://github.com/user-attachments/assets/d8da781e-3ce3-443b-8eb3-b46324a4fcc7)
 ## Features
 - Secure Authentication: Aadhaar OTP login and selfie-based eKYC.
+
 - Loan Management: Application, tracking, and competitive bidding.
 - Bid Handling: Accept bids and manage offers seamlessly.
 - Blockchain Security: Immutable smart contracts for agreements.
